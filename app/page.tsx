@@ -1,65 +1,293 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+
+interface Todo {
+  _id: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  priority: "high" | "medium" | "low";
+  dueDate?: string;
+}
 
 export default function Home() {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [quote, setQuote] = useState<{ q: string; a: string } | null>(null);
+  const [priority, setPriority] = useState<"high" | "medium" | "low">("medium");
+  const [dueDate, setDueDate] = useState<string>("");
+
+  useEffect(() => {
+    fetchTodos();
+    fetchQuotes();
+  }, []);
+
+  async function fetchQuotes() {
+    const res = await fetch("/api/quote");
+    const data = await res.json();
+    setQuote(data[0]);
+  }
+
+  async function fetchTodos() {
+    const res = await fetch("/api/todos");
+    const data = await res.json();
+    setTodos(data);
+  }
+
+  async function addTodo() {
+    if (!input.trim()) return;
+    setLoading(true);
+    const res = await fetch("/api/todos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: input,
+        priority,
+        dueDate: dueDate || undefined,
+      }),
+    });
+    const resData = await res.json();
+    console.log("response:", resData);
+    setInput("");
+    setDueDate("");
+    await fetchTodos();
+    setLoading(false);
+  }
+
+  async function toggleTodo(id: string, completed: boolean) {
+    await fetch(`/api/todos/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: !completed }),
+    });
+    await fetchTodos();
+  }
+
+  async function deleteTodo(id: string) {
+    await fetch(`/api/todos/${id}`, { method: "DELETE" });
+    await fetchTodos();
+  }
+
+  async function togglePriority(
+    id: string,
+    currentPriority: "high" | "medium" | "low",
+  ) {
+    const next =
+      currentPriority === "low"
+        ? "medium"
+        : currentPriority === "medium"
+          ? "high"
+          : "low";
+    await fetch(`/api/todos/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ priority: next }),
+    });
+    await fetchTodos();
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="max-w-lg mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-1">
+            <h1 className="text-2xl font-medium text-gray-900">My tasks</h1>
+            <Link
+              href="/stats"
+              className="text-sm text-gray-400 hover:text-gray-900 transition-colors"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+              Stats →
+            </Link>
+          </div>
+          <p className="text-sm text-gray-400">
+            {todos.filter((t) => t.completed).length} of {todos.length} tasks
+            completed
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+          <span className="text-sm text-gray-400">
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+
+          {/* Barra de progreso */}
+          <div className="mt-3 h-0.5 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gray-900 rounded-full transition-all duration-500"
+              style={{
+                width: todos.length
+                  ? `${(todos.filter((t) => t.completed).length / todos.length) * 100}%`
+                  : "0%",
+              }}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
         </div>
-      </main>
-    </div>
+
+        {/* Quote */}
+        {quote && (
+          <div className="bg-white border border-gray-100 rounded-xl px-5 py-4 mb-6">
+            <p className="text-sm text-gray-600 italic">"{quote.q}"</p>
+            <p className="text-xs text-gray-400 mt-2">— {quote.a}</p>
+          </div>
+        )}
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-2 mb-8">
+          <div className="bg-white rounded-xl p-4 border border-gray-100">
+            <p className="text-2xl font-medium text-gray-900">{todos.length}</p>
+            <p className="text-xs text-gray-400 mt-1">Total</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-gray-100">
+            <p className="text-2xl font-medium text-gray-900">
+              {todos.filter((t) => t.completed).length}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">Completed</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-gray-100">
+            <p className="text-2xl font-medium text-gray-900">
+              {todos.filter((t) => !t.completed).length}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">Pending</p>
+          </div>
+        </div>
+
+        {/* Input */}
+        <div className="flex gap-2 mb-8">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addTodo()}
+            placeholder="Add a new task..."
+            className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-gray-400"
+          />
+          <input
+            type="date"
+            title="dueDate"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:border-gray-400"
+          />
+          <button
+            onClick={addTodo}
+            disabled={loading}
+            className="bg-gray-900 text-white px-5 py-3 rounded-xl text-sm font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "..." : "+ Add"}
+          </button>
+        </div>
+
+        {/* Pendientes */}
+        {todos.filter((t) => !t.completed).length > 0 && (
+          <div className="mb-6">
+            <p className="text-xs text-gray-400 uppercase tracking-widest mb-3">
+              Pending
+            </p>
+            <div className="flex flex-col gap-2">
+              {todos
+                .filter((t) => !t.completed)
+                .map((todo) => (
+                  <div
+                    key={todo._id}
+                    className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3"
+                  >
+                    <button
+                      onClick={() => togglePriority(todo._id, todo.priority)}
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                        todo.priority === "high"
+                          ? "bg-red-100 text-red-500"
+                          : todo.priority === "medium"
+                            ? "bg-yellow-100 text-yellow-600"
+                            : "bg-green-100 text-green-600"
+                      }`}
+                    >
+                      {todo.priority === "high"
+                        ? "High"
+                        : todo.priority === "medium"
+                          ? "Medium"
+                          : "Low"}
+                    </button>
+                    <button
+                      onClick={() => toggleTodo(todo._id, todo.completed)}
+                      title="Completed"
+                      className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center flex-shrink-0 hover:border-gray-900 transition-colors"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm text-gray-800">
+                        {todo.title}
+                      </span>
+                      {todo.dueDate && (
+                        <p
+                          className={`text-xs mt-0.5 ${
+                            new Date(todo.dueDate) < new Date()
+                              ? "text-red-400"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          📅{" "}
+                          {new Date(todo.dueDate).toLocaleDateString("es-CR")}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => deleteTodo(todo._id)}
+                      className="text-gray-300 hover:text-red-400 transition-colors text-lg"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Completadas */}
+        {todos.filter((t) => t.completed).length > 0 && (
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-widest mb-3">
+              Completadas
+            </p>
+            <div className="flex flex-col gap-2">
+              {todos
+                .filter((t) => t.completed)
+                .map((todo) => (
+                  <div
+                    key={todo._id}
+                    className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 opacity-50"
+                  >
+                    <button
+                      onClick={() => toggleTodo(todo._id, todo.completed)}
+                      className="w-5 h-5 rounded-full bg-gray-900 flex items-center justify-center flex-shrink-0"
+                    >
+                      <span className="text-white text-xs">✓</span>
+                    </button>
+                    <span className="flex-1 text-sm text-gray-400 line-through">
+                      {todo.title}
+                    </span>
+                    <button
+                      onClick={() => deleteTodo(todo._id)}
+                      className="text-gray-300 hover:text-red-400 transition-colors text-lg"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {todos.length === 0 && (
+          <p className="text-center text-gray-300 text-sm py-12">
+            No tasks available
+          </p>
+        )}
+      </div>
+    </main>
   );
 }
